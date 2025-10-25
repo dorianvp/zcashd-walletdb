@@ -1,0 +1,13 @@
+[package]
+name = "zcashd-walletdb-parser"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+
+[dependencies]
+anyhow = "1"
+hex = "0.4"
+
+[dev-dependencies]
+pretty_assertions = "1"
