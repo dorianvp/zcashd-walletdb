@@ -10,12 +10,13 @@ pub enum PageType {
 }
 
 impl From<u8> for PageType {
-    fn from(b: u8) -> Self {
-        match b {
-            9 => Self::Meta,
-            3 => Self::Internal,
-            5 => Self::Leaf,
-            x => Self::Other(x),
+    fn from(t: u8) -> Self {
+        match t {
+            9 => PageType::Meta,
+            3 => PageType::Internal,
+            5 => PageType::Leaf,
+            4 => PageType::Overflow,
+            x => PageType::Other(x),
         }
     }
 }

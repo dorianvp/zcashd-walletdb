@@ -52,71 +52,33 @@ pub fn hex(bytes: &[u8]) -> String {
 
 #[derive(Debug)]
 pub struct PageHeader {
-    pub lsn_file: u32, // 0..=3
-    pub lsn_off: u32,  // 4..=7
-    pub pgno: u32,     // 8..=11
-    pub prev: u32,     // 12..=15
-    pub next: u32,     // 16..=19
-    pub flags: u32,    // 20..=23  (type = flags & 0x1f)
-    pub lower: u16,    // 24..=25  (end of slot array)
-    pub upper: u16,    // 26..=27  (start of data region)
-    pub nslots: u16,   // computed: (lower - 28)/2
-    pub ptype: PageType,
+    pub lsn_file: u32,   // 0..=3
+    pub lsn_off: u32,    // 4..=7
+    pub pgno: u32,       // 8..=11
+    pub prev: u32,       // 12..=15
+    pub next: u32,       // 16..=19
+    pub entries: u16,    // 20..=21  (#slots)
+    pub hf_offset: u16,  // 22..=23  (start of data region)
+    pub level: u8,       // 24
+    pub ptype: PageType, // 25
 }
 
-pub fn parse_page_header(page: &[u8], endian: Endian) -> anyhow::Result<PageHeader> {
-    use anyhow::{bail, ensure};
-    if page.len() < 28 {
+pub fn parse_page_header(page: &[u8], e: Endian) -> anyhow::Result<PageHeader> {
+    use anyhow::bail;
+    if page.len() < 26 {
         bail!("short page");
     }
-
-    let lsn_file = u32e(endian, &page[0..4]);
-    let lsn_off = u32e(endian, &page[4..8]);
-    let pgno = u32e(endian, &page[8..12]);
-    let prev = u32e(endian, &page[12..16]);
-    let next = u32e(endian, &page[16..20]);
-    let flags = u32e(endian, &page[20..24]);
-    let lower = u16e(endian, &page[24..26]);
-    let upper = u16e(endian, &page[26..28]);
-
-    let ptype = PageType::from_flags(flags);
-    const BTDATAOFF: usize = 28;
-
-    // Only enforce and compute slots for leaf/internal pages
-    let nslots = if matches!(ptype, PageType::Leaf | PageType::Internal) {
-        ensure!(lower as usize >= BTDATAOFF, "lower too small");
-        ensure!(lower <= upper, "lower > upper");
-        ensure!(upper as usize <= page.len(), "upper beyond page");
-        ((lower as usize - BTDATAOFF) / 2) as u16
-    } else {
-        0
-    };
-
     Ok(PageHeader {
-        lsn_file,
-        lsn_off,
-        pgno,
-        prev,
-        next,
-        flags,
-        lower,
-        upper,
-        nslots,
-        ptype,
+        lsn_file: u32e(e, &page[0..4]),
+        lsn_off: u32e(e, &page[4..8]),
+        pgno: u32e(e, &page[8..12]),
+        prev: u32e(e, &page[12..16]),
+        next: u32e(e, &page[16..20]),
+        entries: u16e(e, &page[20..22]),
+        hf_offset: u16e(e, &page[22..24]),
+        level: page[24],
+        ptype: PageType::from(page[25]),
     })
-}
-
-fn scan_headers(bytes: &[u8], ps: usize, endian: Endian) -> anyhow::Result<()> {
-    let npages = bytes.len() / ps;
-    for i in 1..npages {
-        let page = &bytes[i * ps..(i + 1) * ps];
-        let hdr = parse_page_header(page, endian)?;
-        println!(
-            "page {:>3}: type={:?} slots={} lower={} upper={} prev={} next={} flags=0x{:08x}",
-            i, hdr.ptype, hdr.nslots, hdr.lower, hdr.upper, hdr.prev, hdr.next, hdr.flags
-        );
-    }
-    Ok(())
 }
 
 pub fn page_slice<'a>(all: &'a [u8], ps: usize, pgno: u32) -> &'a [u8] {

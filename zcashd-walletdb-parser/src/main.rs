@@ -2,7 +2,9 @@ use std::{env, fs, path::PathBuf, process};
 
 use anyhow::Result;
 use zcashd_walletdb_parser::{
+    entry::parser::leaf_pairs_on_page,
     headers::parse_btree_meta_page0,
+    page::PageType,
     util::{page_slice, parse_page_header},
 };
 
@@ -53,23 +55,41 @@ fn main() -> Result<()> {
         "root out of range"
     );
 
-    // Walk headers for all pages (skip meta 0)
+    // // Walk headers for all pages (skip meta 0)
+    // for pg in 1..=meta.last_pgno {
+    //     let page = page_slice(&bytes, ps, pg);
+    //     let hdr = parse_page_header(page, endian)?;
+    //     println!(
+    //         "page {:>3}: type={} (code {:02x}) slots={} lower={} upper={} prev={} next={} flags=0x{:08x}",
+    //         pg,
+    //         hdr.ptype.as_str(),
+    //         hdr.ptype.code(),
+    //         hdr.nslots,
+    //         hdr.lower,
+    //         hdr.upper,
+    //         hdr.prev,
+    //         hdr.next,
+    //         hdr.flags
+    //     );
+    // }
+
+    let mut total = 0usize;
     for pg in 1..=meta.last_pgno {
         let page = page_slice(&bytes, ps, pg);
         let hdr = parse_page_header(page, endian)?;
-        println!(
-            "page {:>3}: type={} (code {:02x}) slots={} lower={} upper={} prev={} next={} flags=0x{:08x}",
-            pg,
-            hdr.ptype.as_str(),
-            hdr.ptype.code(),
-            hdr.nslots,
-            hdr.lower,
-            hdr.upper,
-            hdr.prev,
-            hdr.next,
-            hdr.flags
-        );
+        if matches!(hdr.ptype, PageType::Leaf) {
+            let pairs = leaf_pairs_on_page(&bytes, ps, endian, page, &hdr)?;
+            total += pairs.len();
+            for (i, (k, v)) in pairs.iter().take(3).enumerate() {
+                println!(
+                    "page {pg} item {i}: key_len={} val_len={}",
+                    k.len(),
+                    v.len()
+                );
+            }
+        }
     }
+    println!("total kv pairs (incl. overflow) = {total}");
 
     Ok(())
 }
